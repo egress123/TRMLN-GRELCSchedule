@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 
 # ===========================================
 # SCRAPE GRE LOAD MANAGEMENT PAGE
-# Target: Residential Interruptible Water Heating
+# Target: Residential Interruptible Water Heating + Conservation Gauge
 # ===========================================
 
 def scrape_lmguide():
@@ -22,7 +22,7 @@ def scrape_lmguide():
         
         # Get full page text
         body_text = page.inner_text("body")
-        print(f"Page loaded successfully")
+        print(f"Main page loaded successfully")
         
         # Get today's and tomorrow's dates in Central Time
         central = pytz.timezone('America/Chicago')
@@ -38,7 +38,8 @@ def scrape_lmguide():
             "tomorrow_probability": "Unknown",
             "tomorrow_time": "Unknown",
             "tomorrow_date": tomorrow_date,
-            "last_updated": "Unknown"
+            "last_updated": "Unknown",
+            "conservation_status": "Unknown"
         }
         
         # Extract last updated timestamp
@@ -46,16 +47,7 @@ def scrape_lmguide():
         if match:
             result["last_updated"] = match.group(1).strip()
         
-        # Split by major sections
-        # The format is:
-        # Today   Program Type   Probability   Expected Time (CPT)
-        # ...
-        # Residential   Interruptible Water Heating   Unlikely   Undetermined
-        # Next Day   Program Type   Probability   Expected Time (CPT)
-        # ...
-        # Residential   Interruptible Water Heating   Unlikely   Undetermined
-        
-        # Find the Today section
+        # Find the Today section for water heating
         today_section = re.search(
             r'Today\s+Program Type\s+Probability\s+Expected Time.*?' +
             r'Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
@@ -68,7 +60,7 @@ def scrape_lmguide():
             result["today_time"] = today_section.group(2).strip()
             print(f"Today: {result['today_probability']} at {result['today_time']}")
         
-        # Find the Next Day section
+        # Find the Next Day section for water heating
         nextday_section = re.search(
             r'Next Day\s+Program Type\s+Probability\s+Expected Time.*?' +
             r'Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
@@ -81,6 +73,32 @@ def scrape_lmguide():
             result["tomorrow_time"] = nextday_section.group(2).strip()
             print(f"Tomorrow: {result['tomorrow_probability']} at {result['tomorrow_time']}")
         
+        # ===========================================
+        # NOW SCRAPE CONSERVATION GAUGE
+        # ===========================================
+        print("Loading conservation gauge page...")
+        page.goto("https://lmguide.grenergy.com/Conservation_Gauge.aspx", wait_until="networkidle")
+        page.wait_for_timeout(3000)
+        
+        # Look for the gauge image
+        images = page.query_selector_all("img")
+        for img in images:
+            src = img.get_attribute("src")
+            if src and "gauge" in src.lower():
+                print(f"Found gauge image: {src}")
+                
+                # Determine conservation status based on image
+                if "gauge1.jpg" in src.lower():
+                    result["conservation_status"] = "Normal Usage"
+                elif "gauge2.jpg" in src.lower():
+                    result["conservation_status"] = "Elevated Usage"
+                elif "gauge3.jpg" in src.lower():
+                    result["conservation_status"] = "Peak Usage"
+                elif "gauge4.jpg" in src.lower():
+                    result["conservation_status"] = "Critical Usage"
+                break
+        
+        print(f"Conservation Status: {result['conservation_status']}")
         print(f"Extracted data: {json.dumps(result, indent=2)}")
         
         browser.close()
@@ -102,6 +120,7 @@ try:
             "tomorrow_probability": data["tomorrow_probability"],
             "tomorrow_time": data["tomorrow_time"],
             "tomorrow_date": data["tomorrow_date"],
+            "conservation_status": data["conservation_status"],
             "last_updated": data["last_updated"]
         }
     }
@@ -120,6 +139,7 @@ except Exception as e:
             "tomorrow_probability": "Error",
             "tomorrow_time": "Check logs",
             "tomorrow_date": "N/A",
+            "conservation_status": "Unknown",
             "last_updated": "N/A"
         }
     }
