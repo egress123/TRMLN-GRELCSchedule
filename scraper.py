@@ -18,73 +18,91 @@ def scrape_lmguide():
         page.goto("https://lmguide.grenergy.com", wait_until="networkidle")
         page.wait_for_timeout(5000)  # Wait 5 seconds for JS to fully render
         
-        # Get full page text for debugging
+        # Get full page text
         body_text = page.inner_text("body")
-        print(f"=== FULL PAGE TEXT ===\n{body_text}\n=== END ===")
+        print(f"Page loaded successfully")
         
         # Initialize result
         result = {
-            "today_control": "Unknown",
-            "today_times": "N/A",
-            "today_probability": "N/A",
-            "tomorrow_control": "Unknown",
-            "tomorrow_times": "N/A",
-            "tomorrow_probability": "N/A",
-            "last_updated": "N/A"
+            "today_probability": "Unknown",
+            "today_time": "Unknown",
+            "tomorrow_probability": "Unknown",
+            "tomorrow_time": "Unknown",
+            "last_updated": "Unknown"
         }
         
-        # Try to find last updated timestamp
-        try:
-            if "Last Updated:" in body_text:
-                match = re.search(r'Last Updated:\s*([^\n]+)', body_text)
-                if match:
-                    result["last_updated"] = match.group(1).strip()
-        except Exception as e:
-            print(f"Error getting last updated: {e}")
+        # Extract last updated timestamp
+        match = re.search(r'Last Updated:\s*(.+?)(?:\n|$)', body_text)
+        if match:
+            result["last_updated"] = match.group(1).strip()
         
-        # Look for Interruptible Water Heating section
-        # The page likely has tables or sections for each program type
+        # Parse the schedule using text parsing
+        lines = body_text.split('\n')
         
-        # Try to find tables
-        tables = page.query_selector_all("table")
-        print(f"Found {len(tables)} tables")
+        # Find "Today" section
+        today_found = False
+        nextday_found = False
         
-        for i, table in enumerate(tables):
-            table_text = table.inner_text()
-            print(f"=== TABLE {i} ===\n{table_text}\n")
+        for i, line in enumerate(lines):
+            line = line.strip()
             
-            # Check if this table contains water heating info
-            if "Water" in table_text or "water" in table_text:
-                print(f">>> Found water heating in table {i}")
+            # Look for the Today section header
+            if line == "Today":
+                today_found = True
+                nextday_found = False
+                continue
+            
+            # Look for the Next Day section header
+            if line == "Next Day":
+                today_found = False
+                nextday_found = True
+                continue
+            
+            # When we find "Residential Interruptible Water Heating"
+            if "Residential" in line and "Interruptible Water Heating" in line:
+                # The next lines should contain probability and time
+                # Look ahead to find the data
                 
-                # Try to parse rows
-                rows = table.query_selector_all("tr")
-                for row in rows:
-                    row_text = row.inner_text().lower()
-                    if "interruptible" in row_text and "water" in row_text:
-                        cells = row.query_selector_all("td")
-                        cell_texts = [c.inner_text().strip() for c in cells]
-                        print(f"Water heating row: {cell_texts}")
-                        
-                        # Extract based on column structure
-                        # (adjust indices based on actual table structure)
-                        if len(cell_texts) >= 3:
-                            result["today_times"] = cell_texts[1] if len(cell_texts) > 1 else "N/A"
-                            result["today_probability"] = cell_texts[2] if len(cell_texts) > 2 else "N/A"
-                        if len(cell_texts) >= 5:
-                            result["tomorrow_times"] = cell_texts[3] if len(cell_texts) > 3 else "N/A"
-                            result["tomorrow_probability"] = cell_texts[4] if len(cell_texts) > 4 else "N/A"
+                # Sometimes the data is on the same line, sometimes separate
+                # Let's check the next few lines
+                for j in range(i+1, min(i+5, len(lines))):
+                    next_line = lines[j].strip()
+                    
+                    # Check if this line has probability keywords
+                    if any(prob in next_line for prob in ["Unlikely", "Possible", "Likely", "Scheduled"]):
+                        if today_found:
+                            result["today_probability"] = next_line
+                        elif nextday_found:
+                            result["tomorrow_probability"] = next_line
+                    
+                    # Check if this line has time info
+                    if "Undetermined" in next_line or ":" in next_line or "AM" in next_line or "PM" in next_line:
+                        if today_found:
+                            result["today_time"] = next_line
+                        elif nextday_found:
+                            result["tomorrow_time"] = next_line
         
-        # Alternative: Look for specific div/span elements
-        # Try finding by text content
-        try:
-            water_elements = page.query_selector_all("//*[contains(text(), 'Water')]")
-            for el in water_elements:
-                parent = el.evaluate("el => el.closest('tr') ? el.closest('tr').innerText : ''")
-                if parent and "interruptible" in parent.lower():
-                    print(f"Found via XPath: {parent}")
-        except Exception as e:
-            print(f"XPath search error: {e}")
+        # Alternative parsing: use regex to find the pattern
+        # Pattern: Residential\s+Interruptible Water Heating\s+(\w+)\s+(.+)
+        today_match = re.search(
+            r'Today.*?Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
+            body_text,
+            re.DOTALL
+        )
+        if today_match:
+            result["today_probability"] = today_match.group(1).strip()
+            result["today_time"] = today_match.group(2).strip()
+        
+        nextday_match = re.search(
+            r'Next Day.*?Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
+            body_text,
+            re.DOTALL
+        )
+        if nextday_match:
+            result["tomorrow_probability"] = nextday_match.group(1).strip()
+            result["tomorrow_time"] = nextday_match.group(2).strip()
+        
+        print(f"Extracted data: {json.dumps(result, indent=2)}")
         
         browser.close()
         return result
@@ -99,10 +117,10 @@ try:
     # Build payload for TRMNL (max 2kb!)
     payload = {
         "merge_variables": {
-            "today_times": data["today_times"],
             "today_probability": data["today_probability"],
-            "tomorrow_times": data["tomorrow_times"],
+            "today_time": data["today_time"],
             "tomorrow_probability": data["tomorrow_probability"],
+            "tomorrow_time": data["tomorrow_time"],
             "last_updated": data["last_updated"]
         }
     }
@@ -115,10 +133,10 @@ except Exception as e:
     traceback.print_exc()
     payload = {
         "merge_variables": {
-            "today_times": "Error",
-            "today_probability": str(e)[:100],
-            "tomorrow_times": "Error",
-            "tomorrow_probability": "Check logs",
+            "today_probability": "Error",
+            "today_time": str(e)[:100],
+            "tomorrow_probability": "Error",
+            "tomorrow_time": "Check logs",
             "last_updated": "N/A"
         }
     }
@@ -130,17 +148,23 @@ webhook_url = os.environ.get('TRMNL_WEBHOOK_URL')
 
 if not webhook_url:
     print("ERROR: TRMNL_WEBHOOK_URL not set!")
-    exit(1)
-
-print("\nSending to TRMNL...")
-try:
-    response = requests.post(
-        webhook_url,
-        json=payload,
-        headers={"Content-Type": "application/json"},
-        timeout=10
-    )
-    print(f"TRMNL Response: {response.status_code}")
-    print(f"TRMNL Body: {response.text}")
-except requests.RequestException as e:
-    print(f"ERROR sending to TRMNL: {e}")
+    print("Skipping webhook send - set TRMNL_WEBHOOK_URL secret in GitHub")
+else:
+    print("\nSending to TRMNL...")
+    try:
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        print(f"TRMNL Response: {response.status_code}")
+        print(f"TRMNL Response Body: {response.text}")
+        
+        if response.status_code == 200:
+            print("✓ Successfully sent to TRMNL!")
+        else:
+            print(f"✗ TRMNL returned status {response.status_code}")
+            
+    except requests.RequestException as e:
+        print(f"ERROR sending to TRMNL: {e}")
