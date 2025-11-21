@@ -30,6 +30,9 @@ def scrape_lmguide():
         today_date = now_central.strftime('%m/%d')
         tomorrow_date = (now_central + timedelta(days=1)).strftime('%m/%d')
         
+        # Get current timestamp for when plugin refreshed
+        refresh_time = now_central.strftime('%m/%d/%Y %I:%M %p CST')
+        
         # Initialize result
         result = {
             "today_probability": "Unknown",
@@ -39,7 +42,8 @@ def scrape_lmguide():
             "tomorrow_time": "Unknown",
             "tomorrow_date": tomorrow_date,
             "last_updated": "Unknown",
-            "conservation_status": "Unknown"
+            "conservation_status": "Unknown",
+            "refresh_time": refresh_time
         }
         
         # Extract last updated timestamp
