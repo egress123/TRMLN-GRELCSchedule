@@ -36,71 +36,40 @@ def scrape_lmguide():
         if match:
             result["last_updated"] = match.group(1).strip()
         
-        # Parse the schedule using text parsing
-        lines = body_text.split('\n')
+        # Split by major sections
+        # The format is:
+        # Today   Program Type   Probability   Expected Time (CPT)
+        # ...
+        # Residential   Interruptible Water Heating   Unlikely   Undetermined
+        # Next Day   Program Type   Probability   Expected Time (CPT)
+        # ...
+        # Residential   Interruptible Water Heating   Unlikely   Undetermined
         
-        # Find "Today" section
-        today_found = False
-        nextday_found = False
-        
-        for i, line in enumerate(lines):
-            line = line.strip()
-            
-            # Look for the Today section header
-            if line == "Today":
-                today_found = True
-                nextday_found = False
-                continue
-            
-            # Look for the Next Day section header
-            if line == "Next Day":
-                today_found = False
-                nextday_found = True
-                continue
-            
-            # When we find "Residential Interruptible Water Heating"
-            if "Residential" in line and "Interruptible Water Heating" in line:
-                # The next lines should contain probability and time
-                # Look ahead to find the data
-                
-                # Sometimes the data is on the same line, sometimes separate
-                # Let's check the next few lines
-                for j in range(i+1, min(i+5, len(lines))):
-                    next_line = lines[j].strip()
-                    
-                    # Check if this line has probability keywords
-                    if any(prob in next_line for prob in ["Unlikely", "Possible", "Likely", "Scheduled"]):
-                        if today_found:
-                            result["today_probability"] = next_line
-                        elif nextday_found:
-                            result["tomorrow_probability"] = next_line
-                    
-                    # Check if this line has time info
-                    if "Undetermined" in next_line or ":" in next_line or "AM" in next_line or "PM" in next_line:
-                        if today_found:
-                            result["today_time"] = next_line
-                        elif nextday_found:
-                            result["tomorrow_time"] = next_line
-        
-        # Alternative parsing: use regex to find the pattern
-        # Pattern: Residential\s+Interruptible Water Heating\s+(\w+)\s+(.+)
-        today_match = re.search(
-            r'Today.*?Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
+        # Find the Today section
+        today_section = re.search(
+            r'Today\s+Program Type\s+Probability\s+Expected Time.*?' +
+            r'Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
             body_text,
             re.DOTALL
         )
-        if today_match:
-            result["today_probability"] = today_match.group(1).strip()
-            result["today_time"] = today_match.group(2).strip()
         
-        nextday_match = re.search(
-            r'Next Day.*?Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
+        if today_section:
+            result["today_probability"] = today_section.group(1).strip()
+            result["today_time"] = today_section.group(2).strip()
+            print(f"Today: {result['today_probability']} at {result['today_time']}")
+        
+        # Find the Next Day section
+        nextday_section = re.search(
+            r'Next Day\s+Program Type\s+Probability\s+Expected Time.*?' +
+            r'Residential\s+Interruptible Water Heating\s+(\w+)\s+([^\n]+)',
             body_text,
             re.DOTALL
         )
-        if nextday_match:
-            result["tomorrow_probability"] = nextday_match.group(1).strip()
-            result["tomorrow_time"] = nextday_match.group(2).strip()
+        
+        if nextday_section:
+            result["tomorrow_probability"] = nextday_section.group(1).strip()
+            result["tomorrow_time"] = nextday_section.group(2).strip()
+            print(f"Tomorrow: {result['tomorrow_probability']} at {result['tomorrow_time']}")
         
         print(f"Extracted data: {json.dumps(result, indent=2)}")
         
