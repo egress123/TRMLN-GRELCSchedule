@@ -43,7 +43,8 @@ def scrape_lmguide():
             "tomorrow_date": tomorrow_date,
             "last_updated": "Unknown",
             "conservation_status": "Unknown",
-            "refresh_time": refresh_time
+            "refresh_time": refresh_time,
+            "gauge_image_url": ""
         }
         
         # Extract last updated timestamp
@@ -91,6 +92,16 @@ def scrape_lmguide():
             if src and "gauge" in src.lower():
                 print(f"Found gauge image: {src}")
                 
+                # Get full URL if it's relative
+                if src.startswith('/'):
+                    result["gauge_image_url"] = f"https://lmguide.grenergy.com{src}"
+                elif src.startswith('http'):
+                    result["gauge_image_url"] = src
+                else:
+                    result["gauge_image_url"] = f"https://lmguide.grenergy.com/{src}"
+                
+                print(f"Full gauge URL: {result['gauge_image_url']}")
+                
                 # Determine conservation status based on image
                 if "gauge1.jpg" in src.lower():
                     result["conservation_status"] = "Normal Usage"
@@ -126,7 +137,8 @@ try:
             "tomorrow_date": data["tomorrow_date"],
             "conservation_status": data["conservation_status"],
             "last_updated": data["last_updated"],
-            "refresh_time": data["refresh_time"]
+            "refresh_time": data["refresh_time"],
+            "gauge_image_url": data["gauge_image_url"]
         }
     }
     
@@ -146,8 +158,8 @@ except Exception as e:
             "tomorrow_date": "N/A",
             "conservation_status": "Unknown",
             "last_updated": "N/A",
-            "refresh_time": "N/A"
-            
+            "refresh_time": "N/A",
+            "gauge_image_url": ""
         }
     }
 
