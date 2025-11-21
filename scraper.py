@@ -2,6 +2,8 @@ import requests
 import json
 import os
 import re
+from datetime import datetime, timedelta
+import pytz
 from playwright.sync_api import sync_playwright
 
 # ===========================================
@@ -22,28 +24,22 @@ def scrape_lmguide():
         body_text = page.inner_text("body")
         print(f"Page loaded successfully")
         
-        # Initialize result
-        result = {
-            "today_probability": "Unknown",
-            "today_time": "Unknown",
-            "tomorrow_probability": "Unknown",
-            "tomorrow_time": "Unknown",
-            "last_updated": "Unknown",
-            "today_date": "Unknown",
-            "tomorrow_date": "Unknown"
-        }
-        
         # Get today's and tomorrow's dates in Central Time
-        from datetime import datetime, timedelta
-        import pytz
-        
         central = pytz.timezone('America/Chicago')
         now_central = datetime.now(central)
         today_date = now_central.strftime('%m/%d')
         tomorrow_date = (now_central + timedelta(days=1)).strftime('%m/%d')
         
-        result["today_date"] = today_date
-        result["tomorrow_date"] = tomorrow_date
+        # Initialize result
+        result = {
+            "today_probability": "Unknown",
+            "today_time": "Unknown",
+            "today_date": today_date,
+            "tomorrow_probability": "Unknown",
+            "tomorrow_time": "Unknown",
+            "tomorrow_date": tomorrow_date,
+            "last_updated": "Unknown"
+        }
         
         # Extract last updated timestamp
         match = re.search(r'Last Updated:\s*(.+?)(?:\n|$)', body_text)
@@ -102,8 +98,10 @@ try:
         "merge_variables": {
             "today_probability": data["today_probability"],
             "today_time": data["today_time"],
+            "today_date": data["today_date"],
             "tomorrow_probability": data["tomorrow_probability"],
             "tomorrow_time": data["tomorrow_time"],
+            "tomorrow_date": data["tomorrow_date"],
             "last_updated": data["last_updated"]
         }
     }
@@ -118,8 +116,10 @@ except Exception as e:
         "merge_variables": {
             "today_probability": "Error",
             "today_time": str(e)[:100],
+            "today_date": "N/A",
             "tomorrow_probability": "Error",
             "tomorrow_time": "Check logs",
+            "tomorrow_date": "N/A",
             "last_updated": "N/A"
         }
     }
