@@ -145,7 +145,7 @@ except Exception as e:
             "tomorrow_time": "Check logs",
             "tomorrow_date": "N/A",
             "conservation_status": "Unknown",
-            "last_updated": "N/A"
+            "last_updated": "N/A",
             "refresh_time": "N/A"
             
         }
