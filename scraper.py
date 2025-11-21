@@ -125,7 +125,8 @@ try:
             "tomorrow_time": data["tomorrow_time"],
             "tomorrow_date": data["tomorrow_date"],
             "conservation_status": data["conservation_status"],
-            "last_updated": data["last_updated"]
+            "last_updated": data["last_updated"],
+            "refresh_time": data["refresh_time"]
         }
     }
     
@@ -145,6 +146,8 @@ except Exception as e:
             "tomorrow_date": "N/A",
             "conservation_status": "Unknown",
             "last_updated": "N/A"
+            "refresh_time": "N/A"
+            
         }
     }
 
