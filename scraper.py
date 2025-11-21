@@ -28,8 +28,22 @@ def scrape_lmguide():
             "today_time": "Unknown",
             "tomorrow_probability": "Unknown",
             "tomorrow_time": "Unknown",
-            "last_updated": "Unknown"
+            "last_updated": "Unknown",
+            "today_date": "Unknown",
+            "tomorrow_date": "Unknown"
         }
+        
+        # Get today's and tomorrow's dates in Central Time
+        from datetime import datetime, timedelta
+        import pytz
+        
+        central = pytz.timezone('America/Chicago')
+        now_central = datetime.now(central)
+        today_date = now_central.strftime('%m/%d')
+        tomorrow_date = (now_central + timedelta(days=1)).strftime('%m/%d')
+        
+        result["today_date"] = today_date
+        result["tomorrow_date"] = tomorrow_date
         
         # Extract last updated timestamp
         match = re.search(r'Last Updated:\s*(.+?)(?:\n|$)', body_text)
